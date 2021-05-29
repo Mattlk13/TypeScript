@@ -198,10 +198,7 @@ namespace ts.projectSystem {
 
             checkNumberOfProjects(service, { inferredProjects: 1 });
             session.clearMessages();
-            host.checkTimeoutQueueLengthAndRun(2);
-
-            checkProjectUpdatedInBackgroundEvent(session, [file.path]);
-
+            host.checkTimeoutQueueLength(0);
             verifyGetErrRequest({
                 session,
                 host,
@@ -240,10 +237,7 @@ namespace ts.projectSystem {
 
             checkNumberOfProjects(service, { inferredProjects: 1 });
             session.clearMessages();
-            host.checkTimeoutQueueLengthAndRun(2);
-
-            checkProjectUpdatedInBackgroundEvent(session, [file.path]);
-
+            host.checkTimeoutQueueLength(0);
             verifyGetErrRequest({
                 session,
                 host,
@@ -521,6 +515,10 @@ namespace ts.projectSystem {
             expectedTrace.push(`======== Module name '${moduleName}' was successfully resolved to '${module.path}'. ========`);
         }
 
+        function getExpectedModuleResolutionFromCacheTrace(containingFile: File, module: File, moduleName: string, cacheLocation: string): string {
+            return `Reusing resolution of module '${moduleName}' from '${containingFile.path}' found in cache from location '${cacheLocation}', it was successfully resolved to '${module.path}'.`;
+        }
+
         function getExpectedRelativeModuleResolutionTrace(host: TestServerHost, file: File, module: File, moduleName: string, expectedTrace: string[] = []) {
             getExpectedResolutionTraceHeader(expectedTrace, file, moduleName);
             expectedTrace.push(`Loading module as file / folder, candidate module location '${removeFileExtension(module.path)}', target file type 'TypeScript'.`);
@@ -546,12 +544,12 @@ namespace ts.projectSystem {
             return expectedTrace;
         }
 
-        function getExpectedReusingResolutionFromOldProgram(file: File, moduleName: string) {
-            return `Reusing resolution of module '${moduleName}' to file '${file.path}' from old program.`;
+        function getExpectedReusingResolutionFromOldProgram(file: File, moduleFile: File, moduleName: string) {
+            return `Reusing resolution of module '${moduleName}' from '${file.path}' of old program, it was successfully resolved to '${moduleFile.path}'.`;
         }
 
         function verifyWatchesWithConfigFile(host: TestServerHost, files: File[], openFile: File, extraExpectedDirectories?: readonly string[]) {
-            const expectedRecursiveDirectories = arrayToSet([tscWatch.projectRoot, `${tscWatch.projectRoot}/${nodeModulesAtTypes}`, ...(extraExpectedDirectories || emptyArray)]);
+            const expectedRecursiveDirectories = new Set([tscWatch.projectRoot, `${tscWatch.projectRoot}/${nodeModulesAtTypes}`, ...(extraExpectedDirectories || emptyArray)]);
             checkWatchedFiles(host, mapDefined(files, f => {
                 if (f === openFile) {
                     return undefined;
@@ -560,11 +558,11 @@ namespace ts.projectSystem {
                 if (indexOfNodeModules === -1) {
                     return f.path;
                 }
-                expectedRecursiveDirectories.set(f.path.substr(0, indexOfNodeModules + "/node_modules".length), true);
+                expectedRecursiveDirectories.add(f.path.substr(0, indexOfNodeModules + "/node_modules".length));
                 return undefined;
             }));
             checkWatchedDirectories(host, [], /*recursive*/ false);
-            checkWatchedDirectories(host, arrayFrom(expectedRecursiveDirectories.keys()), /*recursive*/ true);
+            checkWatchedDirectories(host, arrayFrom(expectedRecursiveDirectories.values()), /*recursive*/ true);
         }
 
         describe("from files in same folder", () => {
@@ -593,6 +591,8 @@ namespace ts.projectSystem {
                 service.openClientFile(file1.path);
                 const expectedTrace = getExpectedRelativeModuleResolutionTrace(host, file1, module1, module1Name);
                 getExpectedRelativeModuleResolutionTrace(host, file1, module2, module2Name, expectedTrace);
+                expectedTrace.push(getExpectedModuleResolutionFromCacheTrace(file2, module1, module1Name, `${tscWatch.projectRoot}/src`));
+                expectedTrace.push(getExpectedModuleResolutionFromCacheTrace(file2, module2, module2Name, `${tscWatch.projectRoot}/src`));
                 verifyTrace(resolutionTrace, expectedTrace);
                 verifyWatchesWithConfigFile(host, files, file1);
 
@@ -600,8 +600,10 @@ namespace ts.projectSystem {
                 host.writeFile(file2.path, file2.content + fileContent);
                 host.runQueuedTimeoutCallbacks();
                 verifyTrace(resolutionTrace, [
-                    getExpectedReusingResolutionFromOldProgram(file1, module1Name),
-                    getExpectedReusingResolutionFromOldProgram(file1, module2Name)
+                    getExpectedReusingResolutionFromOldProgram(file1, module1, module1Name),
+                    getExpectedReusingResolutionFromOldProgram(file1, module2, module2Name),
+                    getExpectedReusingResolutionFromOldProgram(file2, module1, module1Name),
+                    getExpectedReusingResolutionFromOldProgram(file2, module2, module2Name),
                 ]);
                 verifyWatchesWithConfigFile(host, files, file1);
             });
@@ -620,6 +622,8 @@ namespace ts.projectSystem {
                 service.openClientFile(file1.path);
                 const expectedTrace = getExpectedNonRelativeModuleResolutionTrace(host, file1, module1, module1Name);
                 getExpectedNonRelativeModuleResolutionTrace(host, file1, module2, module2Name, expectedTrace);
+                expectedTrace.push(getExpectedModuleResolutionFromCacheTrace(file2, module1, module1Name, `${tscWatch.projectRoot}/src`));
+                expectedTrace.push(getExpectedModuleResolutionFromCacheTrace(file2, module2, module2Name, `${tscWatch.projectRoot}/src`));
                 verifyTrace(resolutionTrace, expectedTrace);
                 verifyWatchesWithConfigFile(host, files, file1, expectedNonRelativeDirectories);
 
@@ -627,8 +631,10 @@ namespace ts.projectSystem {
                 host.writeFile(file2.path, file2.content + fileContent);
                 host.runQueuedTimeoutCallbacks();
                 verifyTrace(resolutionTrace, [
-                    getExpectedReusingResolutionFromOldProgram(file1, module1Name),
-                    getExpectedReusingResolutionFromOldProgram(file1, module2Name)
+                    getExpectedReusingResolutionFromOldProgram(file1, module1, module1Name),
+                    getExpectedReusingResolutionFromOldProgram(file1, module2, module2Name),
+                    getExpectedReusingResolutionFromOldProgram(file2, module1, module1Name),
+                    getExpectedReusingResolutionFromOldProgram(file2, module2, module2Name),
                 ]);
                 verifyWatchesWithConfigFile(host, files, file1, expectedNonRelativeDirectories);
             });
@@ -691,8 +697,14 @@ namespace ts.projectSystem {
                 host.runQueuedTimeoutCallbacks();
 
                 verifyTrace(resolutionTrace, [
-                    getExpectedReusingResolutionFromOldProgram(file1, module1Name),
-                    getExpectedReusingResolutionFromOldProgram(file1, module2Name)
+                    getExpectedReusingResolutionFromOldProgram(file1, module1, module1Name),
+                    getExpectedReusingResolutionFromOldProgram(file1, module2, module2Name),
+                    getExpectedReusingResolutionFromOldProgram(file2, module1, module3Name),
+                    getExpectedReusingResolutionFromOldProgram(file2, module2, module4Name),
+                    getExpectedReusingResolutionFromOldProgram(file4, module1, module6Name),
+                    getExpectedReusingResolutionFromOldProgram(file4, module2, module2Name),
+                    getExpectedReusingResolutionFromOldProgram(file3, module1, module5Name),
+                    getExpectedReusingResolutionFromOldProgram(file3, module2, module4Name),
                 ]);
                 verifyWatchesWithConfigFile(host, files, file1);
             });
@@ -727,8 +739,14 @@ namespace ts.projectSystem {
                 host.runQueuedTimeoutCallbacks();
 
                 verifyTrace(resolutionTrace, [
-                    getExpectedReusingResolutionFromOldProgram(file1, module1Name),
-                    getExpectedReusingResolutionFromOldProgram(file1, module2Name)
+                    getExpectedReusingResolutionFromOldProgram(file1, module1, module1Name),
+                    getExpectedReusingResolutionFromOldProgram(file1, module2, module2Name),
+                    getExpectedReusingResolutionFromOldProgram(file2, module1, module1Name),
+                    getExpectedReusingResolutionFromOldProgram(file2, module2, module2Name),
+                    getExpectedReusingResolutionFromOldProgram(file4, module1, module1Name),
+                    getExpectedReusingResolutionFromOldProgram(file4, module2, module2Name),
+                    getExpectedReusingResolutionFromOldProgram(file3, module1, module1Name),
+                    getExpectedReusingResolutionFromOldProgram(file3, module2, module2Name),
                 ]);
                 verifyWatchesWithConfigFile(host, files, file1, expectedNonRelativeDirectories);
             });
@@ -778,11 +796,17 @@ namespace ts.projectSystem {
                 host.runQueuedTimeoutCallbacks();
 
                 verifyTrace(resolutionTrace, [
-                    getExpectedReusingResolutionFromOldProgram(file1, file2Name),
-                    getExpectedReusingResolutionFromOldProgram(file1, file4Name),
-                    getExpectedReusingResolutionFromOldProgram(file1, file3Name),
-                    getExpectedReusingResolutionFromOldProgram(file1, module1Name),
-                    getExpectedReusingResolutionFromOldProgram(file1, module2Name)
+                    getExpectedReusingResolutionFromOldProgram(file1, file2, file2Name),
+                    getExpectedReusingResolutionFromOldProgram(file1, file4, file4Name),
+                    getExpectedReusingResolutionFromOldProgram(file1, file3, file3Name),
+                    getExpectedReusingResolutionFromOldProgram(file1, module1, module1Name),
+                    getExpectedReusingResolutionFromOldProgram(file1, module2, module2Name),
+                    getExpectedReusingResolutionFromOldProgram(file2, module1, module1Name),
+                    getExpectedReusingResolutionFromOldProgram(file2, module2, module2Name),
+                    getExpectedReusingResolutionFromOldProgram(file4, module1, module1Name),
+                    getExpectedReusingResolutionFromOldProgram(file4, module2, module2Name),
+                    getExpectedReusingResolutionFromOldProgram(file3, module1, module1Name),
+                    getExpectedReusingResolutionFromOldProgram(file3, module2, module2Name),
                 ]);
                 checkWatches();
 
@@ -850,7 +874,7 @@ export const x = 10;`
                 else {
                     checkWatchedDirectoriesDetailed(host, [`${tscWatch.projectRoot}`, `${tscWatch.projectRoot}/src`], 1,  /*recursive*/ false); // failed lookup for fs
                 }
-                const expectedWatchedDirectories = createMap<number>();
+                const expectedWatchedDirectories = new Map<string, number>();
                 expectedWatchedDirectories.set(`${tscWatch.projectRoot}/src`, 1); // Wild card
                 expectedWatchedDirectories.set(`${tscWatch.projectRoot}/src/somefolder`, 1); // failedLookup for somefolder/module2
                 expectedWatchedDirectories.set(`${tscWatch.projectRoot}/src/node_modules`, 1); // failed lookup for somefolder/module2

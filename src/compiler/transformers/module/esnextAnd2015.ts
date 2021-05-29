@@ -58,7 +58,7 @@ namespace ts {
                     // Elide `import=` as it is not legal with --module ES6
                     return undefined;
                 case SyntaxKind.ExportAssignment:
-                    return visitExportAssignment(<ExportAssignment>node);
+                    return visitExportAssignment(node as ExportAssignment);
                 case SyntaxKind.ExportDeclaration:
                     const exportDecl = (node as ExportDeclaration);
                     return visitExportDeclaration(exportDecl);
@@ -99,7 +99,7 @@ namespace ts {
             );
             setOriginalNode(importDecl, node.exportClause);
 
-            const exportDecl = factory.createExportDeclaration(
+            const exportDecl = isExportNamespaceAsDefaultDeclaration(node) ? factory.createExportDefault(synthName) : factory.createExportDeclaration(
                 /*decorators*/ undefined,
                 /*modifiers*/ undefined,
                 /*isTypeOnly*/ false,
@@ -124,7 +124,7 @@ namespace ts {
         function onEmitNode(hint: EmitHint, node: Node, emitCallback: (hint: EmitHint, node: Node) => void): void {
             if (isSourceFile(node)) {
                 if ((isExternalModule(node) || compilerOptions.isolatedModules) && compilerOptions.importHelpers) {
-                    helperNameSubstitutions = createMap<Identifier>();
+                    helperNameSubstitutions = new Map<string, Identifier>();
                 }
                 previousOnEmitNode(hint, node, emitCallback);
                 helperNameSubstitutions = undefined;

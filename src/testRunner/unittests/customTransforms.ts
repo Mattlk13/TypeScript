@@ -4,7 +4,7 @@ namespace ts {
             it(name, () => {
                 const roots = sources.map(source => createSourceFile(source.file, source.text, ScriptTarget.ES2015));
                 const fileMap = arrayToMap(roots, file => file.fileName);
-                const outputs = createMap<string>();
+                const outputs = new Map<string, string>();
                 const host: CompilerHost = {
                     getSourceFile: (fileName) => fileMap.get(fileName),
                     getDefaultLibFileName: () => "lib.d.ts",
@@ -46,7 +46,7 @@ namespace ts {
             function visit(node: Node): VisitResult<Node> {
                 switch (node.kind) {
                     case SyntaxKind.FunctionDeclaration:
-                        return visitFunction(<FunctionDeclaration>node);
+                        return visitFunction(node as FunctionDeclaration);
                     default:
                         return visitEachChild(node, visit, context);
                 }
@@ -62,7 +62,7 @@ namespace ts {
             function visit(node: Node): VisitResult<Node> {
                 switch (node.kind) {
                     case SyntaxKind.VariableStatement:
-                        return visitVariableStatement(<VariableStatement>node);
+                        return visitVariableStatement(node as VariableStatement);
                     default:
                         return visitEachChild(node, visit, context);
                 }

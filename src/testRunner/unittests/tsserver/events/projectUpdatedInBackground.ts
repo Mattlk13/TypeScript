@@ -2,7 +2,7 @@ namespace ts.projectSystem {
     describe("unittests:: tsserver:: events:: ProjectsUpdatedInBackground", () => {
         function verifyFiles(caption: string, actual: readonly string[], expected: readonly string[]) {
             assert.equal(actual.length, expected.length, `Incorrect number of ${caption}. Actual: ${actual} Expected: ${expected}`);
-            const seen = createMap<true>();
+            const seen = new Map<string, true>();
             forEach(actual, f => {
                 assert.isFalse(seen.has(f), `${caption}: Found duplicate ${f}. Actual: ${actual} Expected: ${expected}`);
                 seen.set(f, true);
@@ -12,12 +12,12 @@ namespace ts.projectSystem {
 
         function createVerifyInitialOpen(session: TestSession, verifyProjectsUpdatedInBackgroundEventHandler: (events: server.ProjectsUpdatedInBackgroundEvent[]) => void) {
             return (file: File) => {
-                session.executeCommandSeq(<protocol.OpenRequest>{
+                session.executeCommandSeq({
                     command: server.CommandNames.Open,
                     arguments: {
                         file: file.path
                     }
-                });
+                } as protocol.OpenRequest);
                 verifyProjectsUpdatedInBackgroundEventHandler([]);
             };
         }

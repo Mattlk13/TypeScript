@@ -146,13 +146,13 @@ namespace Harness.Parallel.Worker {
 
         function executeUnitTests(task: UnitTestTask, fn: (payload: TaskResult) => void) {
             if (!unitTestSuiteMap && unitTestSuite.suites.length) {
-                unitTestSuiteMap = ts.createMap<Mocha.Suite>();
+                unitTestSuiteMap = new ts.Map<string, Mocha.Suite>();
                 for (const suite of unitTestSuite.suites) {
                     unitTestSuiteMap.set(suite.title, suite);
                 }
             }
             if (!unitTestTestMap && unitTestSuite.tests.length) {
-                unitTestTestMap = ts.createMap<Mocha.Test>();
+                unitTestTestMap = new ts.Map<string, Mocha.Test>();
                 for (const test of unitTestSuite.tests) {
                     unitTestTestMap.set(test.title, test);
                 }
@@ -210,12 +210,10 @@ namespace Harness.Parallel.Worker {
             const passes: TestInfo[] = [];
             const start = +new Date();
             const runner = new Mocha.Runner(suite, /*delay*/ false);
-            const uncaught = (err: any) => runner.uncaught(err);
 
             runner
                 .on("start", () => {
                     unhookUncaughtExceptions(); // turn off global uncaught handling
-                    process.on("unhandledRejection", uncaught); // turn on unhandled rejection handling (not currently handled in mocha)
                 })
                 .on("pass", (test: Mocha.Test) => {
                     passes.push({ name: test.titlePath() });
@@ -224,8 +222,8 @@ namespace Harness.Parallel.Worker {
                     errors.push({ name: test.titlePath(), error: err.message, stack: err.stack });
                 })
                 .on("end", () => {
-                    process.removeListener("unhandledRejection", uncaught);
                     hookUncaughtExceptions();
+                    runner.dispose();
                 })
                 .run(() => {
                     fn({ task, errors, passes, passing: passes.length, duration: +new Date() - start });
@@ -297,7 +295,7 @@ namespace Harness.Parallel.Worker {
         }
 
         // A cache of test harness Runner instances.
-        const runners = ts.createMap<RunnerBase>();
+        const runners = new ts.Map<string, RunnerBase>();
 
         // The root suite for all unit tests.
         let unitTestSuite: Suite;

@@ -72,6 +72,7 @@ namespace Harness {
 
                 for (const file of fs.readdirSync(folder)) {
                     const pathToFile = pathModule.join(folder, file);
+                    if (!fs.existsSync(pathToFile)) continue; // ignore invalid symlinks
                     const stat = fs.statSync(pathToFile);
                     if (options.recursive && stat.isDirectory()) {
                         paths = paths.concat(filesInFolder(pathToFile));
@@ -251,9 +252,9 @@ namespace Harness {
             }
 
             if (!libFileNameSourceFileMap) {
-                libFileNameSourceFileMap = ts.createMapFromTemplate({
+                libFileNameSourceFileMap = new ts.Map(ts.getEntries({
                     [defaultLibFileName]: createSourceFileAndAssertInvariants(defaultLibFileName, IO.readFile(libFolder + "lib.es5.d.ts")!, /*languageVersion*/ ts.ScriptTarget.Latest)
-                });
+                }));
             }
 
             let sourceFile = libFileNameSourceFileMap.get(fileName);
@@ -316,7 +317,7 @@ namespace Harness {
         let optionsIndex: ts.ESMap<string, ts.CommandLineOption>;
         function getCommandLineOption(name: string): ts.CommandLineOption | undefined {
             if (!optionsIndex) {
-                optionsIndex = ts.createMap<ts.CommandLineOption>();
+                optionsIndex = new ts.Map<string, ts.CommandLineOption>();
                 const optionDeclarations = harnessOptionDeclarations.concat(ts.optionDeclarations);
                 for (const option of optionDeclarations) {
                     optionsIndex.set(option.name.toLowerCase(), option);
@@ -364,7 +365,7 @@ namespace Harness {
                 case "list":
                     return ts.parseListTypeOption(option, value, errors);
                 default:
-                    return ts.parseCustomTypeOption(<ts.CommandLineOptionOfCustomType>option, value, errors);
+                    return ts.parseCustomTypeOption(option as ts.CommandLineOptionOfCustomType, value, errors);
             }
         }
 
@@ -469,7 +470,7 @@ namespace Harness {
                 if (vpath.isDeclaration(file.unitName) || vpath.isJson(file.unitName)) {
                     dtsFiles.push(file);
                 }
-                else if (vpath.isTypeScript(file.unitName) || (vpath.isJavaScript(file.unitName) && options.allowJs)) {
+                else if (vpath.isTypeScript(file.unitName) || (vpath.isJavaScript(file.unitName) && ts.getAllowJSCompilerOption(options))) {
                     const declFile = findResultCodeFile(file.unitName);
                     if (declFile && !findUnit(declFile.file, declInputFiles) && !findUnit(declFile.file, declOtherFiles)) {
                         dtsFiles.push({ unitName: declFile.file, content: Utils.removeByteOrderMark(declFile.text) });
@@ -595,7 +596,7 @@ namespace Harness {
             errorsReported = 0;
 
             // 'merge' the lines of each input file with any errors associated with it
-            const dupeCase = ts.createMap<number>();
+            const dupeCase = new ts.Map<string, number>();
             for (const inputFile of inputFiles.filter(f => f.content !== undefined)) {
                 // Filter down to the errors in the file
                 const fileErrors = diagnostics.filter((e): e is ts.DiagnosticWithLocation => {
@@ -775,7 +776,7 @@ namespace Harness {
                 if (skipBaseline) {
                     return;
                 }
-                const dupeCase = ts.createMap<number>();
+                const dupeCase = new ts.Map<string, number>();
 
                 for (const file of allFiles) {
                     const { unitName } = file;
@@ -946,7 +947,7 @@ namespace Harness {
             // Collect, test, and sort the fileNames
             const files = Array.from(outputFiles);
             files.slice().sort((a, b) => ts.compareStringsCaseSensitive(cleanName(a.file), cleanName(b.file)));
-            const dupeCase = ts.createMap<number>();
+            const dupeCase = new ts.Map<string, number>();
             // Yield them
             for (const outputFile of files) {
                 yield [checkDuplicatedFileName(outputFile.file, dupeCase), "/*====== " + outputFile.file + " ======*/\r\n" + Utils.removeByteOrderMark(outputFile.text)];
@@ -1075,10 +1076,10 @@ namespace Harness {
                 return option.type;
             }
             if (option.type === "boolean") {
-                return booleanVaryByStarSettingValues || (booleanVaryByStarSettingValues = ts.createMapFromTemplate({
+                return booleanVaryByStarSettingValues || (booleanVaryByStarSettingValues = new ts.Map(ts.getEntries({
                     true: 1,
                     false: 0
-                }));
+                })));
             }
         }
     }
@@ -1381,7 +1382,7 @@ namespace Harness {
                 else {
                     IO.writeFile(actualFileName, encodedActual);
                 }
-                if (require && opts && opts.PrintDiff) {
+                if (!!require && opts && opts.PrintDiff) {
                     const Diff = require("diff");
                     const patch = Diff.createTwoFilesPatch("Expected", "Actual", expected, actual, "The current baseline", "The new version");
                     throw new Error(`The baseline file ${relativeFileName} has changed.${ts.ForegroundColorEscapeSequences.Grey}\n\n${patch}`);
@@ -1403,7 +1404,7 @@ namespace Harness {
 
         export function runMultifileBaseline(relativeFileBase: string, extension: string, generateContent: () => IterableIterator<[string, string, number]> | IterableIterator<[string, string]> | null, opts?: BaselineOptions, referencedExtensions?: string[]): void {
             const gen = generateContent();
-            const writtenFiles = ts.createMap<true>();
+            const writtenFiles = new ts.Map<string, true>();
             const errors: Error[] = [];
 
             // eslint-disable-next-line no-null/no-null
@@ -1481,5 +1482,5 @@ namespace Harness {
         return ts.find(["tsconfig.json" as "tsconfig.json", "jsconfig.json" as "jsconfig.json"], x => x === flc);
     }
 
-    if (Error) (<any>Error).stackTraceLimit = 100;
+    if (Error) (Error as any).stackTraceLimit = 100;
 }

@@ -81,7 +81,7 @@ namespace M
     }
 }`;
             runSingleFileTest("extractMethodLike", /*placeOpenBraceOnNewLineForFunctions*/ true, text, /*validateNodes*/ true, (sourceFile, changeTracker) => {
-                const statements = (<FunctionDeclaration>findChild("foo", sourceFile)).body!.statements.slice(1);
+                const statements = (findChild("foo", sourceFile) as FunctionDeclaration).body!.statements.slice(1);
                 const newFunction = factory.createFunctionDeclaration(
                     /*decorators*/ undefined,
                     /*modifiers*/ undefined,
@@ -329,7 +329,7 @@ namespace M {
         }
 
         function findConstructor(sourceFile: SourceFile): ConstructorDeclaration {
-            const classDecl = <ClassDeclaration>sourceFile.statements[0];
+            const classDecl = sourceFile.statements[0] as ClassDeclaration;
             return find<ClassElement, ConstructorDeclaration>(classDecl.members, (m): m is ConstructorDeclaration => isConstructorDeclaration(m) && !!m.body)!;
         }
         function createTestSuperCall() {
@@ -618,6 +618,20 @@ import {
                 // eslint-disable-next-line boolean-trivia
                 changeTracker.insertNodeInListAfter(sourceFile, findChild("x", sourceFile), factory.createImportSpecifier(undefined, factory.createIdentifier("a")));
             });
+        }
+        {
+            const runTest = (name: string, text: string) => runSingleFileTest(name, /*placeOpenBraceOnNewLineForFunctions*/ false, text, /*validateNodes*/ false, (sourceFile, changeTracker) => {
+                for (const specifier of ["x3", "x4", "x5"]) {
+                    // eslint-disable-next-line boolean-trivia
+                    changeTracker.insertNodeInListAfter(sourceFile, findChild("x2", sourceFile), factory.createImportSpecifier(undefined, factory.createIdentifier(specifier)));
+                }
+            });
+
+            const crlfText = "import {\r\nx1,\r\nx2\r\n} from \"bar\";";
+            runTest("insertNodeInListAfter19", crlfText);
+
+            const lfText = "import {\nx1,\nx2\n} from \"bar\";";
+            runTest("insertNodeInListAfter20", lfText);
         }
         {
             const text = `
